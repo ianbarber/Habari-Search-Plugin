@@ -3,13 +3,12 @@
 /* The Xapian PHP bindings need to be in the path, and the extension loaded */
 include_once "xapian.php"; 
 
-// TODO: is there a better way of generating a search link?
-// TODO: Add recommendation function that returns a list of similar IDs.
+// TODO: Look for ways took the pagination links on search for counts etc.
+// TODO: Find out how current pagination is done, and try to hook to replace with get matches estimated
+// TODO: Put spaces around brackets
 // TODO: Test on PHPIR code base
 // TODO: Put onto live PHPIR
-// TODO: Github release and PHPIR post
 // TODO: Email to Habari list with functionality and example
-// TODO: Find out how current pagination is done, and try to hook to replace with get matches estimated
 
 /**
  * Xapian based search plugin for Habari.
@@ -22,7 +21,6 @@ include_once "xapian.php";
  * @todo Support for remote backends so Xapian can be elsewhere
  * @todo Handle error from opening database
  * @todo Allow filtering based on tags
- * @todo Spelling correction integration, make available to theme
  * @todo Sorting by other than relevance (date?)
  * @todo Test result order on search results per page 
  * 
@@ -92,6 +90,7 @@ class XapianSearch extends Plugin
 			Utils::redirect(); //Refresh page. 
 		}
 		$this->add_template('searchspelling', dirname(__FILE__) . '/searchspelling.php');
+		$this->add_template('searchsimilar', dirname(__FILE__) . '/searchsimilar.php');
 	}
 	
 	/**
@@ -249,10 +248,21 @@ class XapianSearch extends Plugin
 		return $theme->fetch( 'searchspelling' );
 	}
 	
+	public function theme_similar_posts( $theme, $post, $max_recommended = 5 ) 
+	{
+		if($post instanceof Post && intval($post->id) > 0) {
+			$theme->similar = $this->get_similar_posts($post, $max_recommended);  
+			$theme->base_post = $post;
+			return $theme->fetch( 'searchsimilar' );
+		}
+	}
+	
 	/**
 	 * Return a list of posts that are similar to the current post
+	 * 
+	 * @todo: Could do with some caching around this.
 	 */
-	public function theme_similar_posts( $theme, $post, $max_recommended = 5 ) 
+	public function get_similar_posts( $post, $max_recommended = 5 ) 
 	{
 		$guid = $this->get_uid($post);
 		$posting = $this->_database->postlist_begin($guid);
@@ -260,19 +270,30 @@ class XapianSearch extends Plugin
 		$rset = new XapianRset();
 		$rset->add_document($posting->get_docid());
 		$eset = $enquire->get_eset(20, $rset);
-		// TODO: Sort this out!
-		$query = new XapianQuery(XapianQuery::OP_OR, $eset->begin(), $eset->end());
-		$enquire->set_query($query);	
-		$matches = $enquire->get_mset(0, $max_recommended);
-
-		$ids = array();
-		while ( !$i->equals($matches->end()) ) {
-			$n = $i->get_rank() + 1;
-			$ids[] = $i->get_document()->get_value(self::XAPIAN_FIELD_ID);
+		$i = $eset->begin();
+		$terms = array();
+		while ( !$i->equals($eset->end()) ) {
+			$terms[] = $i->get_term();
 			$i->next();
 		}
-		
-		return Posts::get(array('id' => $ids));
+		$query = new XapianQuery(XapianQuery::OP_OR, $terms);
+		$enquire->set_query($query);	
+		$matches = $enquire->get_mset(0, $max_recommended+1);
+
+		$ids = array();
+		$i = $matches->begin();
+		while ( !$i->equals($matches->end()) ) {
+			$n = $i->get_rank() + 1;
+			if($i->get_document()->get_value(self::XAPIAN_FIELD_ID) != $post->id) {
+				$ids[] = $i->get_document()->get_value(self::XAPIAN_FIELD_ID);
+			}
+			$i->next();
+		}
+		if( count($ids) ) {
+			return Posts::get(array('id' => $ids));
+		} else {
+			return array();
+		}
 	}
 	
 
