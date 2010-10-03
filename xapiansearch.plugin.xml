@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<pluggable type="plugin">
+	<name>XapianSearch</name>
+	<license url="http://www.apache.org/licenses/LICENSE-2.0.html">Apache Software License 2.0</license>
+	
+	<author url="http://phpir.com/">Ian Barber</author>
+	
+	<version>0.2</version>
+	<url>http://phpir.com/</url>
+	<description><![CDATA[Replace the built in search functionality with a Xapian based engine.]]></description>
+
+	<copyright>2010</copyright>
+	
+	<help>
+		<value><![CDATA[
+			<p>Offers advanced search, including stemming and spelling correction.</p>
+			<p>When activated this plugin attempts to sync all published content to a Xapian engine. Afterwards, all published items will be pushed to the engine. It also replaces the search results with results drawn from Xapian. </p>
+		<p>Make sure you have Xapian and the Xapian extension installed. You'll need a line in your php.ini like</p>
+		<code>extension=xapian.so</code>
+		<p>And to make sure the bundled xapian.php file is somewhere in your path (worst case put it in the plugins/xapiansearch directory)</p>
+		<p>Xapian will also need to be able to write to whichever directory the database is to live in - currently by default that's xapian.db in the user directory. </p>
+		<p>To add a spelling correction element to your theme, add the line: </p>
+		<code><?php $theme->search_spelling(); ?></code>
+		<p>To your search.php file, and this will output a correction if there is one. </p>
+		<p>To retrieve similar posts you can use the theme function, which will return an array of posts</p>
+		<code><?php $theme->similar_posts($post); ?></code>
+		]]></value>
+	</help>
+	
+</pluggable>
