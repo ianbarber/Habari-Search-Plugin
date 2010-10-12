@@ -3,11 +3,12 @@
 /* The Xapian PHP bindings need to be in the path, and the extension loaded */
 include_once "xapian.php"; 
 
-// TODO: Look for ways took the pagination links on search for counts etc.
-// TODO: Find out how current pagination is done, and try to hook to replace with get matches estimated
-// TODO: Put spaces around brackets
+// TODO: update github
+// TODO: Add in configuration options for location etc.
+// TODO: install notes
 // TODO: Test on PHPIR code base
 // TODO: Put onto live PHPIR
+// TODO: Test spelling and similarity on live PHPIR code/theme
 // TODO: Email to Habari list with functionality and example
 
 /**
@@ -85,12 +86,12 @@ class XapianSearch extends Plugin
 	{
 		$this->init_paths();
 		if ( !is_writable( $this->_rootPath ) ) {
-			Session::error('Activation failed, Xapian directory is not writeable.', 'Xapian Search');
+			Session::error( 'Activation failed, Xapian directory is not writeable.', 'Xapian Search' );
 			Plugins::deactivate_plugin( __FILE__ ); //Deactivate plugin
 			Utils::redirect(); //Refresh page. 
 		}
-		$this->add_template('searchspelling', dirname(__FILE__) . '/searchspelling.php');
-		$this->add_template('searchsimilar', dirname(__FILE__) . '/searchsimilar.php');
+		$this->add_template( 'searchspelling', dirname(__FILE__) . '/searchspelling.php' );
+		$this->add_template( 'searchsimilar', dirname(__FILE__) . '/searchsimilar.php' );
 	}
 	
 	/**
@@ -101,7 +102,7 @@ class XapianSearch extends Plugin
 	{
 		// Test the lib is there
 		if( !class_exists("XapianTermIterator") ) {
-			Session::error('Activation failed, Xapian does not seem to be installed.', 'Xapian Search');
+			Session::error( 'Activation failed, Xapian does not seem to be installed.', 'Xapian Search' );
 			Plugins::deactivate_plugin( __FILE__ );
 		}
 		/*
@@ -111,7 +112,7 @@ class XapianSearch extends Plugin
 		 * rather than anything helpful!
 		 */
 		$this->init_paths(); 
-		$this->open_writable_database(self::INIT_DB);
+		$this->open_writable_database( self::INIT_DB );
 		$posts = Posts::get(array(	'status' => Post::status( 'published' ),
 		 							'ignore_permissions' => true,
 									'nolimit' => true, // techno techno techno techno
@@ -137,7 +138,7 @@ class XapianSearch extends Plugin
 		}
 		
 		$this->open_writable_database();
-		$this->index_post($post);
+		$this->index_post( $post );
 	}
 	
 	/** 
@@ -150,11 +151,11 @@ class XapianSearch extends Plugin
 	{
 		if ( Post::status( 'published' ) != $post->status ) {
 			// this is a bit of a fudge, as a post may never have been added.
-			$this->delete_post($post);
+			$this->delete_post( $post );
 			return;
 		}
 		$this->open_writable_database();
-		$this->index_post($post);
+		$this->index_post( $post );
 	}
 	
 	/**
@@ -165,7 +166,7 @@ class XapianSearch extends Plugin
 	public function action_post_delete_before( $post ) 
 	{
 		$this->open_writable_database();
-		$this->delete_post($post);
+		$this->delete_post( $post );
 	}
 	
 	/**
@@ -188,17 +189,17 @@ class XapianSearch extends Plugin
 			
 			$this->open_readable_database();
 			$qp = new XapianQueryParser();
-			$enquire = new XapianEnquire($this->_database);
+			$enquire = new XapianEnquire( $this->_database );
 			
 			// TODO: Check locale!
-			$stemmer = new XapianStem("english");
-			$qp->set_stemmer($stemmer);
-			$qp->set_database($this->_database);
-			$qp->set_stemming_strategy(XapianQueryParser::STEM_SOME);
-			$query = $qp->parse_query($this->_lastSearch, 
-					XapianQueryParser::FLAG_SPELLING_CORRECTION);
+			$stemmer = new XapianStem( "english" );
+			$qp->set_stemmer( $stemmer );
+			$qp->set_database( $this->_database );
+			$qp->set_stemming_strategy( XapianQueryParser::STEM_SOME );
+			$query = $qp->parse_query( $this->_lastSearch, 
+					XapianQueryParser::FLAG_SPELLING_CORRECTION );
 			   
-			$enquire->set_query($query);
+			$enquire->set_query( $query );
 			if( isset($paramarray['limit']) ) {
 				$limit = $paramarray['limit'];
 			} else {
@@ -219,14 +220,14 @@ class XapianSearch extends Plugin
 			}
 
 			$this->_spelling = $qp->get_corrected_query_string();
-			$matches = $enquire->get_mset($offset, $limit);
+			$matches = $enquire->get_mset( $offset, $limit );
 
 			// TODO: get count from $matches->get_matches_estimated() instead of current method
 			$i = $matches->begin();
 			$ids = array();
 			while ( !$i->equals($matches->end()) ) {
 				$n = $i->get_rank() + 1;
-				$ids[] = $i->get_document()->get_value(self::XAPIAN_FIELD_ID);
+				$ids[] = $i->get_document()->get_value( self::XAPIAN_FIELD_ID );
 				$i->next();
 			}
 			
@@ -251,7 +252,7 @@ class XapianSearch extends Plugin
 	public function theme_similar_posts( $theme, $post, $max_recommended = 5 ) 
 	{
 		if($post instanceof Post && intval($post->id) > 0) {
-			$theme->similar = $this->get_similar_posts($post, $max_recommended);  
+			$theme->similar = $this->get_similar_posts( $post, $max_recommended );  
 			$theme->base_post = $post;
 			return $theme->fetch( 'searchsimilar' );
 		}
@@ -265,10 +266,10 @@ class XapianSearch extends Plugin
 	public function get_similar_posts( $post, $max_recommended = 5 ) 
 	{
 		$guid = $this->get_uid($post);
-		$posting = $this->_database->postlist_begin($guid);
-		$enquire = new XapianEnquire($this->_database);
+		$posting = $this->_database->postlist_begin( $guid );
+		$enquire = new XapianEnquire( $this->_database );
 		$rset = new XapianRset();
-		$rset->add_document($posting->get_docid());
+		$rset->add_document( $posting->get_docid() );
 		$eset = $enquire->get_eset(20, $rset);
 		$i = $eset->begin();
 		$terms = array();
@@ -276,21 +277,21 @@ class XapianSearch extends Plugin
 			$terms[] = $i->get_term();
 			$i->next();
 		}
-		$query = new XapianQuery(XapianQuery::OP_OR, $terms);
-		$enquire->set_query($query);	
-		$matches = $enquire->get_mset(0, $max_recommended+1);
+		$query = new XapianQuery( XapianQuery::OP_OR, $terms );
+		$enquire->set_query( $query );	
+		$matches = $enquire->get_mset( 0, $max_recommended+1 );
 
 		$ids = array();
 		$i = $matches->begin();
 		while ( !$i->equals($matches->end()) ) {
 			$n = $i->get_rank() + 1;
-			if($i->get_document()->get_value(self::XAPIAN_FIELD_ID) != $post->id) {
-				$ids[] = $i->get_document()->get_value(self::XAPIAN_FIELD_ID);
+			if( $i->get_document()->get_value(self::XAPIAN_FIELD_ID) != $post->id ) {
+				$ids[] = $i->get_document()->get_value( self::XAPIAN_FIELD_ID );
 			}
 			$i->next();
 		}
 		if( count($ids) ) {
-			return Posts::get(array('id' => $ids));
+			return Posts::get( array('id' => $ids) );
 		} else {
 			return array();
 		}
@@ -319,18 +320,18 @@ class XapianSearch extends Plugin
 		}
 
 		if( $flag == self::INIT_DB ) {
-			$this->_database = new XapianWritableDatabase($this->_indexPath, (int)Xapian::DB_CREATE_OR_OVERWRITE);
+			$this->_database = new XapianWritableDatabase( $this->_indexPath, (int)Xapian::DB_CREATE_OR_OVERWRITE );
 		} else {
-			$this->_database = new XapianWritableDatabase($this->_indexPath, (int)Xapian::DB_CREATE_OR_OPEN);
+			$this->_database = new XapianWritableDatabase( $this->_indexPath, (int)Xapian::DB_CREATE_OR_OPEN );
 		}
 		$this->_indexer = new XapianTermGenerator();
 		// enable spelling correction
-		$this->_indexer->set_database($this->_database);
-		$this->_indexer->set_flags(XapianTermGenerator::FLAG_SPELLING);
+		$this->_indexer->set_database( $this->_database );
+		$this->_indexer->set_flags( XapianTermGenerator::FLAG_SPELLING );
 		
 		// TODO: Check locale! 
-		$stemmer = new XapianStem("english");
-		$this->_indexer->set_stemmer($stemmer);	
+		$stemmer = new XapianStem( "english" );
+		$this->_indexer->set_stemmer( $stemmer );	
 	}
 	
 	/** 
@@ -344,7 +345,7 @@ class XapianSearch extends Plugin
 				return false;
 			}
 			
-			$this->_database = new XapianDatabase($this->_indexPath);
+			$this->_database = new XapianDatabase( $this->_indexPath );
 		}
 	}
 	
@@ -360,23 +361,23 @@ class XapianSearch extends Plugin
 		$tags = $post->get_tags();
 		if( is_array($tags) && count($tags) ) {
 			foreach( $tags as $tag => $name ) {
-				$doc->add_term("XTAG" . strtolower($tag));
+				$doc->add_term( "XTAG" . strtolower($tag) );
 			}
 		}
 		
-		$doc->set_data($post->content);
-		$doc->add_value(self::XAPIAN_FIELD_URL, $post->permalink);
-		$doc->add_value(self::XAPIAN_FIELD_TITLE, $post->title);
-		$doc->add_value(self::XAPIAN_FIELD_USERID, $post->user_id);
-		$doc->add_value(self::XAPIAN_FIELD_PUBDATE, $post->pubdate);
-		$doc->add_value(self::XAPIAN_FIELD_CONTENTTYPE, $post->content_type);
-		$doc->add_value(self::XAPIAN_FIELD_ID, $post->id);	
-		$this->_indexer->set_document($doc);
-		$this->_indexer->index_text($post->title, 10);
-		$this->_indexer->index_text($post->content, 1);
-		$id = $this->get_uid($post);
-		$doc->add_term($id);
-		return $this->_database->replace_document($id, $doc);
+		$doc->set_data( $post->content);
+		$doc->add_value( self::XAPIAN_FIELD_URL, $post->permalink );
+		$doc->add_value( self::XAPIAN_FIELD_TITLE, $post->title );
+		$doc->add_value( self::XAPIAN_FIELD_USERID, $post->user_id );
+		$doc->add_value( self::XAPIAN_FIELD_PUBDATE, $post->pubdate );
+		$doc->add_value( self::XAPIAN_FIELD_CONTENTTYPE, $post->content_type );
+		$doc->add_value( self::XAPIAN_FIELD_ID, $post->id );	
+		$this->_indexer->set_document( $doc );
+		$this->_indexer->index_text( $post->title, 50 );
+		$this->_indexer->index_text( $post->content, 1 );
+		$id = $this->get_uid( $post );
+		$doc->add_term( $id );
+		return $this->_database->replace_document( $id, $doc );
 	}
 	
 	/**
@@ -386,7 +387,7 @@ class XapianSearch extends Plugin
 	 */
 	protected function delete_post( $post ) 
 	{
-		$this->_database->deleteDocument($this->get_uid($post));
+		$this->_database->deleteDocument( $this->get_uid($post) );
 	}
 	
 	/**
@@ -404,7 +405,7 @@ class XapianSearch extends Plugin
 	 */
 	protected function init_paths() 
 	{
-		$this->_rootPath = HABARI_PATH . '/' . Site::get_path('user', true);
+		$this->_rootPath = HABARI_PATH . '/' . Site::get_path( 'user', true );
 		$this->_indexPath = $this->_rootPath . 'xapian.db';
 	}
 }
