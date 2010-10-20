@@ -3,8 +3,6 @@
 /* The Xapian PHP bindings need to be in the path, and the extension loaded */
 include_once "xapian.php"; 
 
-// TODO: Add slash automatically to directory if not
-// TODO: do install doc/guide
 // TODO: Test on PHPIR code base
 // TODO: Test on 0.7 release
 // TODO: Test spelling and similarity on live PHPIR code/theme

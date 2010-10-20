@@ -1,1 +1,20 @@
-A Xapian search plugin for Habari
+A Xapian search plugin for Habari: http://habariproject.org/en/
+
+Offers advanced search, including stemming and spelling correction using the open source Xapian search engine
+
+When activated this plugin attempts to sync all published content to a Xapian engine. Afterwards, all published items will be pushed to the engine. It also replaces the search results with results drawn from Xapian. 
+
+Make sure you have Xapian and the Xapian extension installed (http://xapian.org/docs/install.html). Often this will be available via package management, but make sure to get both the Xapian and Xapian Bindings packages (if available) to ensure the PHP extension is available. You'll need a line in your php.ini like:
+
+	extension=xapian.so
+
+Make sure the Xapian bundled xapian.php file is somewhere in your path (worst case put it in the plugins/xapiansearch directory).
+
+Xapian will also need to be able to write to whichever directory the database is to live in - currently by default that's xapian.db in the user directory.
+
+To add a spelling correction element to your theme, add the line:
+	<?php $theme->search_spelling(); ?>
+To your search.php file, and this will output a correction if there is one. 
+
+To retrieve similar posts you can use the theme function, which will return an array of posts
+	<?php $theme->similar_posts($post); ?>
