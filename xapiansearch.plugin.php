@@ -3,27 +3,29 @@
 /* The Xapian PHP bindings need to be in the path, and the extension loaded */
 include_once "xapian.php"; 
 
-// TODO: update github
-// TODO: Add in configuration options for location etc.
-// TODO: install notes
+// TODO: Add slash automatically to directory if not
+// TODO: do install doc/guide
 // TODO: Test on PHPIR code base
-// TODO: Put onto live PHPIR
+// TODO: Test on 0.7 release
 // TODO: Test spelling and similarity on live PHPIR code/theme
-// TODO: Email to Habari list with functionality and example
+
+// TODO: Look for process for adding a plugin to /extras
+// TODO: update github
+// TODO: Put zip version on github
+// TODO: Put onto live PHPIR
+// TODO: Email to Habari list with functionality  (search, spelling, suggest) and example
 
 /**
  * Xapian based search plugin for Habari.
  * 
- * @todo Add forms UI based options page in order to set file location etc. 
+ * @todo Support for remote backends so Xapian can be elsewhere (via FormUI)
  * @todo Better support for pagination count system
- * @todo Split Xapian specific stuff out, and allow for multiple backends
- * @todo Currently only supports English stemming - pick up from locale
- * @todo Could do with having the index file location be configurable
- * @todo Support for remote backends so Xapian can be elsewhere
+ * @todo Split Xapian specific stuff out, and allow for different engines
  * @todo Handle error from opening database
  * @todo Allow filtering based on tags
  * @todo Sorting by other than relevance (date?)
- * @todo Test result order on search results per page 
+ * @todo Caching on get_similar_posts
+ * @todo Index comments as a lower weighted set of terms on their posts
  * 
  * @link http://xapian.org
  */
@@ -44,11 +46,16 @@ class XapianSearch extends Plugin
 	/* Std prefix from Xapian docs */
 	const XAPIAN_PREFIX_UID = 'Q';
 	
-	/* 
-		Used to know whether we should overwrite
-	 	an existing database.
-	*/
+	/** 
+	 *	Used to know whether we should overwrite
+	 *	an existing database.
+	 */
 	const INIT_DB = 1;
+	
+	/**
+	 * Constant for the option value for the index location
+	 */
+	const PATH_OPTION = 'xapiansearch__xapian_db_path';
 	
 	/**
 	 * The path to the index file
@@ -72,6 +79,45 @@ class XapianSearch extends Plugin
 	private $_spelling = '';
 	
 	/**
+	 * The current stemming locale
+	 */
+	private $_locale;
+	
+	/**
+	 * Map of locales to xapian stemming files
+	 */
+	private $_stem_map = array(
+		'da' => 'danish', // check
+		'de' => 'german',
+		'en' => 'english',
+		'es' => 'spanish', 
+		'fi' => 'finnish',
+		'fr' => 'french',
+		'hu' => 'hungarian', // check
+		'it' => 'italian', //check
+		'nl' => 'dutch', // check
+		'no' => 'norwegian',
+		'po' => 'portuguese', // check
+		'ro' => 'romanian', //check
+		'ru' => 'russian',
+		'sw' => 'swedish', //check
+		'tu' => 'turkish', //check
+		'zh' => false // check
+	);
+	
+	/**
+	 * The default stemmer to be used if not
+	 * matching locale is found. If false, 
+	 * no stemming will be performed. 
+	 */
+	private $_default_stemmer = false;
+	
+	/**
+	 * Indicate whether the plugin is properly initialised
+	 */
+	private $_enabled;
+	
+	/**
 	 * Null the Xapian database to cause it to flush
 	 */
 	public function __destruct() 
@@ -86,12 +132,14 @@ class XapianSearch extends Plugin
 	{
 		$this->init_paths();
 		if ( !is_writable( $this->_rootPath ) ) {
-			Session::error( 'Activation failed, Xapian directory is not writeable.', 'Xapian Search' );
-			Plugins::deactivate_plugin( __FILE__ ); //Deactivate plugin
+			$this->_enabled = false;
+			Session::error( 'Init failed, Xapian directory is not writeable. Please update configuration with a writeable directiory.', 'Xapian Search' );
+			//Plugins::deactivate_plugin( __FILE__ ); //Deactivate plugin
 			Utils::redirect(); //Refresh page. 
 		}
 		$this->add_template( 'searchspelling', dirname(__FILE__) . '/searchspelling.php' );
 		$this->add_template( 'searchsimilar', dirname(__FILE__) . '/searchsimilar.php' );
+		$this->_enabled = true;
 	}
 	
 	/**
@@ -105,25 +153,66 @@ class XapianSearch extends Plugin
 			Session::error( 'Activation failed, Xapian does not seem to be installed.', 'Xapian Search' );
 			Plugins::deactivate_plugin( __FILE__ );
 		}
-		/*
-		 * Action init doesn't get called before this, so we need to init the paths again.
-		 * Helpfully, if you pass the Xapian create database null you get the error 
-		 * "No matching function for overloaded 'new_WritableDatabase'"
-		 * rather than anything helpful!
-		 */
-		$this->init_paths(); 
-		$this->open_writable_database( self::INIT_DB );
-		$posts = Posts::get(array(	'status' => Post::status( 'published' ),
-		 							'ignore_permissions' => true,
-									'nolimit' => true, // techno techno techno techno
-									));
-		if( $posts instanceof Posts ) {
-			foreach( $posts as $post ) {
-				$this->index_post($post);
-			}
-		} else if( $posts instanceof Post ) {
-			$this->index_post($posts);
+		$this->reindex_all();
+	}
+	
+	/**
+	* Add actions to the plugin page for this plugin
+	* The authorization should probably be done per-user.
+	*
+	* @param array $actions An array of actions that apply to this plugin
+	* @param string $plugin_id The string id of a plugin, generated by the system
+	* @return array The array of actions to attach to the specified $plugin_id
+	*/
+	public function filter_plugin_config( $actions, $plugin_id )
+	{
+		if ( $plugin_id == $this->plugin_id() ){
+			$actions[] = 'Configure';
 		}
+
+		return $actions;
+	}
+	
+	/**
+	* Respond to the user selecting an action on the plugin page
+	*
+	* @param string $plugin_id The string id of the acted-upon plugin
+	* @param string $action The action string supplied via the filter_plugin_config hook
+	*/
+	public function action_plugin_ui( $plugin_id, $action )
+	{
+		if ( $plugin_id == $this->plugin_id() ){
+			switch ( $action ){
+				case 'Configure' :
+					$ui = new FormUI( strtolower( get_class( $this ) ) );
+					$ui->append( 'text', 'xapian_path', 'option:' . self::PATH_OPTION, _t('The location where Xapian will create the search database.'));
+					$ui->append( 'submit', 'save', _t( 'Save' ) );
+					$ui->set_option( 'success_message', _t('Options saved') );
+					$ui->on_success( array( $this, 'updated_config' ) );
+					$ui->out();
+					break;
+			}
+		}
+	}
+	
+	/**
+	 * Callback from config form submit. Store the details if the location is writeable.
+	 *
+	 * @param FormUI $ui 
+	 * @return string|bool
+	 */
+	public function updated_config( $ui ) 
+	{
+		if( !is_writeable( $ui->xapian_path->value ) ) {
+			$ui->set_option('success_message', _t('The location you specified is not writeable by the webserver'));
+		}
+		else {
+			$ui->save();
+			$this->reindex_all();
+			return  '<p>' . _t('Xapian database updated.') . '</p>';
+		}
+		
+		return false;
 	}
 
 	/**
@@ -133,7 +222,7 @@ class XapianSearch extends Plugin
 	 */
 	public function action_post_insert_after( $post ) 
 	{
-		if ( Post::status( 'published' ) != $post->status ) {
+		if ( !$this->_enabled || Post::status( 'published' ) != $post->status ) {
 			return;
 		}
 		
@@ -149,6 +238,10 @@ class XapianSearch extends Plugin
 	 */
 	public function action_post_update_after( $post ) 
 	{
+		if( !$this->_enabled ) { 
+			return; 
+		}
+		
 		if ( Post::status( 'published' ) != $post->status ) {
 			// this is a bit of a fudge, as a post may never have been added.
 			$this->delete_post( $post );
@@ -165,6 +258,10 @@ class XapianSearch extends Plugin
 	 */
 	public function action_post_delete_before( $post ) 
 	{
+		if( !$this->_enabled ) { 
+			return; 
+		}
+		
 		$this->open_writable_database();
 		$this->delete_post( $post );
 	}
@@ -177,9 +274,7 @@ class XapianSearch extends Plugin
 	 */
 	public function filter_posts_get_paramarray( $paramarray ) 
 	{
-		// TODO: Remove, debug
-		// var_dump($paramarray);
-		if( isset( $paramarray['criteria'] ) ) {
+		if( $this->_enabled && isset( $paramarray['criteria'] ) ) {
 			
 			if( $paramarray['criteria'] != '' ) {
 				$this->_lastSearch = $paramarray['criteria'];
@@ -191,11 +286,13 @@ class XapianSearch extends Plugin
 			$qp = new XapianQueryParser();
 			$enquire = new XapianEnquire( $this->_database );
 			
-			// TODO: Check locale!
-			$stemmer = new XapianStem( "english" );
-			$qp->set_stemmer( $stemmer );
+			if($this->get_stem_locale()) {
+				// Note, there may be a problem if this is different than at indexing time!
+				$stemmer = new XapianStem( $this->get_stem_locale() );
+				$qp->set_stemmer( $stemmer );	
+				$qp->set_stemming_strategy( XapianQueryParser::STEM_SOME );			
+			}
 			$qp->set_database( $this->_database );
-			$qp->set_stemming_strategy( XapianQueryParser::STEM_SOME );
 			$query = $qp->parse_query( $this->_lastSearch, 
 					XapianQueryParser::FLAG_SPELLING_CORRECTION );
 			   
@@ -233,6 +330,13 @@ class XapianSearch extends Plugin
 			
 			if( count($ids) > 0 ) {
 				$paramarray['id'] = $ids;
+				$orderby = 'CASE';
+				$i = 1;
+				foreach($ids as $id) {
+					$orderby .= " WHEN id = " . $id . " THEN " . $i++;
+				}
+				$orderby .= " END";
+				$paramarray['orderby'] = $orderby;
 			} else {
 				$paramarray['id'] = array(-1);
 			}
@@ -241,17 +345,42 @@ class XapianSearch extends Plugin
 	}
 	
 	/**
-	 * Output data for the spelling correction theme template 
+	 * Output data for the spelling correction theme template. By default will
+	 * display a 'Did you mean?' message if spelling corrections were available,
+	 * and a link to the corrected search. 
+	 * 
+	 * Called from theme like <code><?php $theme->search_spelling(); ?></code>
+	 * USes search_spelling template.
+	 * 
+	 * @param Theme $theme
 	 */
 	public function theme_search_spelling( $theme )
 	{
+		if( !$this->_enabled ) { 
+			return; 
+		}
+		
 		$theme->spelling = $this->_spelling;  
 		return $theme->fetch( 'searchspelling' );
 	}
 	
+	/**
+	 * Theme function for displaying similar posts to the post passed in. By default
+	 * will display a list of post titles that are considered similar to the post in
+	 * question. Note that the post needs to be found in the search index, so this 
+	 * will only work on published items. The easiest way with unpublished would be to 
+	 * index then delete the post.
+	 * 
+	 * Called from a theme like <code><?php $theme->similar_posts($post); ?></code>
+	 * Uses search_similar template.
+	 *
+	 * @param Theme $theme 
+	 * @param Post $post 
+	 * @param int $max_recommended 
+	 */
 	public function theme_similar_posts( $theme, $post, $max_recommended = 5 ) 
 	{
-		if($post instanceof Post && intval($post->id) > 0) {
+		if( $this->_enabled && $post instanceof Post && intval($post->id) > 0 ) {
 			$theme->similar = $this->get_similar_posts( $post, $max_recommended );  
 			$theme->base_post = $post;
 			return $theme->fetch( 'searchsimilar' );
@@ -297,6 +426,29 @@ class XapianSearch extends Plugin
 		}
 	}
 	
+	/**
+	 * Return the current locale based on options
+	 *
+	 * @return string
+	 */
+	protected function get_stem_locale() {
+		if(isset($this->_locale)) {
+			return $this->_locale;
+		}
+		if ( Options::get('locale') ) {
+			$locale = Options::get('locale');
+		}
+		else if ( Options::get( 'system_locale' ) ) {
+			$locale = Options::get( 'system_locale' );
+		} else {
+			$locale = 'en-us';
+		}
+		$locale = substr($locale, 0, 2);
+		$this->_locale = isset($this->_stem_map[$locale]) ? 
+							$this->_stem_map[$locale] : 
+							$this->_default_stemmer;
+		return $this->_locale;
+	}
 
 	/**
 	 * Initialise a writable database for updating the index
@@ -319,19 +471,25 @@ class XapianSearch extends Plugin
 			return false;
 		}
 
+		// Create/Open or Create/Overwrite depending on whether the module is being init
 		if( $flag == self::INIT_DB ) {
 			$this->_database = new XapianWritableDatabase( $this->_indexPath, (int)Xapian::DB_CREATE_OR_OVERWRITE );
 		} else {
 			$this->_database = new XapianWritableDatabase( $this->_indexPath, (int)Xapian::DB_CREATE_OR_OPEN );
 		}
+		
 		$this->_indexer = new XapianTermGenerator();
+		
 		// enable spelling correction
 		$this->_indexer->set_database( $this->_database );
 		$this->_indexer->set_flags( XapianTermGenerator::FLAG_SPELLING );
 		
-		// TODO: Check locale! 
-		$stemmer = new XapianStem( "english" );
-		$this->_indexer->set_stemmer( $stemmer );	
+		// enable stemming
+		if($this->get_stem_locale()) {
+			// Note, there may be a problem if this is different than at search time!
+			$stemmer = new XapianStem( $this->get_stem_locale() );
+			$this->_indexer->set_stemmer( $stemmer );				
+		}
 	}
 	
 	/** 
@@ -373,11 +531,41 @@ class XapianSearch extends Plugin
 		$doc->add_value( self::XAPIAN_FIELD_CONTENTTYPE, $post->content_type );
 		$doc->add_value( self::XAPIAN_FIELD_ID, $post->id );	
 		$this->_indexer->set_document( $doc );
-		$this->_indexer->index_text( $post->title, 50 );
+		$this->_indexer->index_text( $post->title, 50 ); // add weight to titles
 		$this->_indexer->index_text( $post->content, 1 );
 		$id = $this->get_uid( $post );
 		$doc->add_term( $id );
 		return $this->_database->replace_document( $id, $doc );
+	}
+	
+	/**
+	 * Reindex the database, and reinit paths. 
+	 *
+	 */
+	protected function reindex_all() 
+	{
+		$this->init_paths(); 
+		if ( !is_writable( $this->_rootPath ) ) {
+			Session::error( 'Indexing failed, Xapian directory is not writeable.', 'Xapian Search' );
+		}
+		
+		/*
+		 * Helpfully, if you pass the Xapian create database null you get the error 
+		 * "No matching function for overloaded 'new_WritableDatabase'"
+		 * rather than anything helpful!
+		 */
+		$this->open_writable_database( self::INIT_DB );
+		$posts = Posts::get(array(	'status' => Post::status( 'published' ),
+		 							'ignore_permissions' => true,
+									'nolimit' => true, // techno techno techno techno
+									));
+		if( $posts instanceof Posts ) {
+			foreach( $posts as $post ) {
+				$this->index_post( $post );
+			}
+		} else if( $posts instanceof Post ) {
+			$this->index_post( $posts );
+		}
 	}
 	
 	/**
@@ -387,7 +575,7 @@ class XapianSearch extends Plugin
 	 */
 	protected function delete_post( $post ) 
 	{
-		$this->_database->deleteDocument( $this->get_uid($post) );
+		$this->_database->delete_document( $this->get_uid($post) );
 	}
 	
 	/**
@@ -405,8 +593,14 @@ class XapianSearch extends Plugin
 	 */
 	protected function init_paths() 
 	{
-		$this->_rootPath = HABARI_PATH . '/' . Site::get_path( 'user', true );
-		$this->_indexPath = $this->_rootPath . 'xapian.db';
+		$this->_rootPath = Options::get(self::PATH_OPTION);
+		if(!$this->_rootPath) {
+			$this->_rootPath = HABARI_PATH . '/' . Site::get_path( 'user', true );
+			Options::set(self::PATH_OPTION, $this->_rootPath);
+		}
+		$this->_indexPath = $this->_rootPath . 
+							(substr($this->_rootPath, -1) == '/' ? '' : '/') .
+							'xapian.db';
 	}
 }
 ?>

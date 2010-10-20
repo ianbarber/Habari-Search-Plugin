@@ -5,7 +5,7 @@
 	
 	<author url="http://phpir.com/">Ian Barber</author>
 	
-	<version>0.2</version>
+	<version>0.3</version>
 	<url>http://phpir.com/</url>
 	<description><![CDATA[Replace the built in search functionality with a Xapian based engine.]]></description>
 
@@ -13,7 +13,7 @@
 	
 	<help>
 		<value><![CDATA[
-			<p>Offers advanced search, including stemming and spelling correction.</p>
+			<p>Offers advanced search, including stemming and spelling correction using the open source Xapian search engine.</p>
 			<p>When activated this plugin attempts to sync all published content to a Xapian engine. Afterwards, all published items will be pushed to the engine. It also replaces the search results with results drawn from Xapian. </p>
 		<p>Make sure you have Xapian and the Xapian extension installed. You'll need a line in your php.ini like</p>
 		<code>extension=xapian.so</code>
