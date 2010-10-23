@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <pluggable type="plugin">
-	<name>XapianSearch</name>
+	<name>MultiSearch</name>
 	<license url="http://www.apache.org/licenses/LICENSE-2.0.html">Apache Software License 2.0</license>
 	
 	<author url="http://phpir.com/">Ian Barber</author>
 	
-	<version>0.3</version>
+	<version>0.5</version>
 	<url>http://phpir.com/</url>
 	<description><![CDATA[Replace the built in search functionality with a Xapian based engine.]]></description>
 
@@ -13,9 +13,9 @@
 	
 	<help>
 		<value><![CDATA[
-			<p>Offers advanced search, including stemming and spelling correction using the open source Xapian search engine.</p>
+			<p>This plugin is designed to work with Habari 0.7 and abover, and offers advanced search, including stemming and spelling correction using the open source Xapian search engine.</p>
 			<p>When activated this plugin attempts to sync all published content to a Xapian engine. Afterwards, all published items will be pushed to the engine. It also replaces the search results with results drawn from Xapian. </p>
-		<p>Make sure you have Xapian and the Xapian extension installed. You'll need a line in your php.ini like</p>
+		<p>Make sure you have Xapian and the Xapian extension installed (http://xapian.org/docs/install.html). Often this will be available via package management, but make sure to get both the Xapian and Xapian Bindings packages (if available) to ensure the PHP extension is available. You'll need a line in your php.ini like:</p>
 		<code>extension=xapian.so</code>
 		<p>And to make sure the bundled xapian.php file is somewhere in your path (worst case put it in the plugins/xapiansearch directory)</p>
 		<p>Xapian will also need to be able to write to whichever directory the database is to live in - currently by default that's xapian.db in the user directory. </p>

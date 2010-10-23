@@ -1,4 +1,4 @@
-A Xapian search plugin for Habari: http://habariproject.org/en/
+A multiple search engine plugin for Habari: http://habariproject.org/en/
 
 Offers advanced search, including stemming and spelling correction using the open source Xapian search engine
 
