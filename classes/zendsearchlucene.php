@@ -27,12 +27,12 @@ class ZendSearchLucene implements PluginSearchInterface
 	/**
 	 * The path to the index file
 	 */
-	private $_indexPath;
+	private $_index_path;
 	
 	/**
 	 * The path to the index file directory
 	 */
-	private $_rootPath;
+	private $_root_path;
 	
 	/**
 	 * Create the object, requires the index location.
@@ -41,11 +41,9 @@ class ZendSearchLucene implements PluginSearchInterface
 	 */
 	public function __construct( $path ) 
 	{
-			Zend_Search_Lucene::setResultSetLimit( 50 );
-		Zend_Search_Lucene_Analysis_Analyzer::setDefault( new Zend_Search_Lucene_Analysis_Analyzer_Common_Utf8() );
-		$this->_rootPath = $path;
-		$this->_indexPath = $this->_rootPath . 
-							(substr($this->_rootPath, -1) == '/' ? '' : '/') .
+		$this->_root_path = $path;
+		$this->_index_path = $this->_root_path . 
+							(substr($this->_root_path, -1) == '/' ? '' : '/') .
 							'zsl.db';
 	}
 	
@@ -65,7 +63,7 @@ class ZendSearchLucene implements PluginSearchInterface
 	public function check_conditions() 
 	{
 		$ok = true;
-		if( !is_writable( $this->_rootPath ) ) {
+		if( !is_writable( $this->_root_path ) ) {
 			Session::error( 'Init failed, Search index directory is not writeable. Please update configuration with a writeable directiory.', 'Multi Search' );
 			$ok = false;
 		}
@@ -84,10 +82,13 @@ class ZendSearchLucene implements PluginSearchInterface
 	 */
 	public function open_writable_database( $flag = 0 ) 
 	{
+		Zend_Search_Lucene::setResultSetLimit( 50 );
+		Zend_Search_Lucene_Analysis_Analyzer::setDefault( new Zend_Search_Lucene_Analysis_Analyzer_Common_Utf8() );
+		
 		if( PluginSearchInterface::INIT_DB == $flag ) {
-			$this->_index = Zend_Search_Lucene::create($this->_indexPath);
+			$this->_index = Zend_Search_Lucene::create($this->_index_path);
 		} else {
-			$this->_index = Zend_Search_Lucene::open($this->_indexPath);
+			$this->_index = Zend_Search_Lucene::open($this->_index_path);
 		}
 	}
 	

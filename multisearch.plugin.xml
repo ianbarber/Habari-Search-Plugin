@@ -5,25 +5,32 @@
 	
 	<author url="http://phpir.com/">Ian Barber</author>
 	
-	<version>0.5</version>
+	<version>0.8</version>
 	<url>http://phpir.com/</url>
-	<description><![CDATA[Replace the built in search functionality. Requires configuration before taking effect.]]></description>
+	<description><![CDATA[Replace the built in search functionality. Requires configuration after installing before any functionality is added.]]></description>
 
 	<copyright>2010</copyright>
 	
 	<help>
 		<value><![CDATA[
-			<p>This plugin is designed to work with Habari 0.7 and abover, and offers advanced search, including stemming and spelling correction using the open source Xapian search engine.</p>
-			<p>When activated this plugin attempts to sync all published content to a Xapian engine. Afterwards, all published items will be pushed to the engine. It also replaces the search results with results drawn from Xapian. </p>
-		<p>Make sure you have Xapian and the Xapian extension installed (http://xapian.org/docs/install.html). Often this will be available via package management, but make sure to get both the Xapian and Xapian Bindings packages (if available) to ensure the PHP extension is available. You'll need a line in your php.ini like:</p>
-		<code>extension=xapian.so</code>
-		<p>And to make sure the bundled xapian.php file is somewhere in your path (worst case put it in the plugins/xapiansearch directory)</p>
-		<p>Xapian will also need to be able to write to whichever directory the database is to live in - currently by default that's xapian.db in the user directory. </p>
+			<p>This plugin is designed to work with Habari 0.7 and above, and offers advanced search, including stemming and spelling correction where available. The plugin can make use of multiple different open source engines, including the Xapian search engine and Zend Search Lucene.</p>
+			<p>When activated, this plugin will not take any affect until the engine is configured. Initially select choose engine, select the engine, then afterwards select configure to decide basic details, like the directory the search index should be stored in to. Once this is configured all published content will be synced to the search engine. Afterwards, all items which are published will be also be added to the engine.</p>
+		<p>By default, the engine will hook into the search page and provide the results</p>
+		<h3>Other Features</h3>
+		<p>Note that not all engines support all features, so they may not activate even if in the theme</p>
 		<p>To add a spelling correction element to your theme, add the line: </p>
 		<code><?php $theme->search_spelling(); ?></code>
 		<p>To your search.php file, and this will output a correction if there is one. </p>
 		<p>To retrieve similar posts you can use the theme function, which will return an array of posts</p>
 		<code><?php $theme->similar_posts($post); ?></code>
+		<h3>Xapian</h3>
+		<p>Xapian is a high performance open source search engine written in C. To use <a href="http://xapian.org/docs/install.html">Xapian</a>, make sure you have Xapian and the Xapian extension installed. Often this will be available via package management, but make sure to get both the Xapian and Xapian Bindings packages (if available) to ensure the PHP extension is available. You'll need a line in your php.ini like:</p>
+		<code>extension=xapian.so</code>
+		<p>And to make sure the bundled xapian.php file is somewhere in your path (worst case put it in the plugins/xapiansearch directory)</p>
+		<p>Xapian will also need to be able to write to whichever directory the database is to live in - currently by default that's xapian.db in the user directory. </p>
+		<h3>Zend Search Lucene</h3>
+		<p>Zend Search Lucene is the native PHP port of the Lucene search engine which is part of <a href="http://framework.zend.com/">Zend Framework</a>. To use this, you will need Zend Framework 1.5 or greater installed somewhere in the path. </p>
+		<p>The engine will also need to the ability to write to whichever directory it is configured to.</p>
 		]]></value>
 	</help>
 	

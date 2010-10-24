@@ -78,12 +78,12 @@ class XapianSearch implements PluginSearchInterface
 	/**
 	 * The path to the index file
 	 */
-	private $_indexPath;
+	private $_index_path;
 	
 	/**
 	 * The path to the index file directory
 	 */
-	private $_rootPath;
+	private $_root_path;
 	
 	/**
 	 * Create the object, requires the index location.
@@ -92,9 +92,9 @@ class XapianSearch implements PluginSearchInterface
 	 */
 	public function __construct( $path ) 
 	{
-		$this->_rootPath = $path;
-		$this->_indexPath = $this->_rootPath . 
-							(substr($this->_rootPath, -1) == '/' ? '' : '/') .
+		$this->_root_path = $path;
+		$this->_index_path = $this->_root_path . 
+							(substr($this->_root_path, -1) == '/' ? '' : '/') .
 							'xapian.db';
 	}
 	
@@ -114,7 +114,7 @@ class XapianSearch implements PluginSearchInterface
 	public function check_conditions() 
 	{
 		$ok = true;
-		if( !is_writable( $this->_rootPath ) ) {
+		if( !is_writable( $this->_root_path ) ) {
 			Session::error( 'Init failed, Search index directory is not writeable. Please update configuration with a writeable directiory.', 'Multi Search' );
 			$ok = false;
 		}
@@ -132,12 +132,12 @@ class XapianSearch implements PluginSearchInterface
 	public function open_readable_database() 
 	{
 		if( !isset($this->_database) ) {
-			if( strlen($this->_indexPath) == 0 ) {
+			if( strlen($this->_index_path) == 0 ) {
 				Session::error('Received a bad index path in the database opening', 'Xapian Search');
 				return false;
 			}
 			
-			$this->_database = new XapianDatabase( $this->_indexPath );
+			$this->_database = new XapianDatabase( $this->_index_path );
 		}
 	}
 	
@@ -157,7 +157,7 @@ class XapianSearch implements PluginSearchInterface
 			}
 		}
 
-		if( strlen($this->_indexPath) == 0 ) {
+		if( strlen($this->_index_path) == 0 ) {
 			Session::error('Received a bad index path in the database opening', 'Xapian Search');
 			return false;
 		}
@@ -169,9 +169,9 @@ class XapianSearch implements PluginSearchInterface
 		 * rather than anything helpful!
 		 */
 		if( $flag == PluginSearchInterface::INIT_DB ) {
-			$this->_database = new XapianWritableDatabase( $this->_indexPath, (int)Xapian::DB_CREATE_OR_OVERWRITE );
+			$this->_database = new XapianWritableDatabase( $this->_index_path, (int)Xapian::DB_CREATE_OR_OVERWRITE );
 		} else {
-			$this->_database = new XapianWritableDatabase( $this->_indexPath, (int)Xapian::DB_CREATE_OR_OPEN );
+			$this->_database = new XapianWritableDatabase( $this->_index_path, (int)Xapian::DB_CREATE_OR_OPEN );
 		}
 		
 		$this->_indexer = new XapianTermGenerator();

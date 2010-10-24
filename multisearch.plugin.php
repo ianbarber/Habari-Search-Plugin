@@ -27,12 +27,12 @@ class MultiSearch extends Plugin
 	/**
 	 * The path to the index file
 	 */
-	private $_rootPath; 
+	private $_root_path; 
 	
 	/**
 	 * The last search query performed
 	 */
-	private $_lastSearch;
+	private $_last_search;
 	
 	/**
 	 * The spelling correction, if needed
@@ -104,6 +104,16 @@ class MultiSearch extends Plugin
 	}
 	
 	/**
+	 * Deactivate the plugin and remove the options
+	 *
+	 * @param string $file 
+	 */
+	public function action_plugin_deactivation( $file )
+	{
+		Options::delete( self::ENGINE_OPTION );
+	}
+	
+	/**
 	* Add actions to the plugin page for this plugin
 	* The authorization should probably be done per-user.
 	*
@@ -114,7 +124,9 @@ class MultiSearch extends Plugin
 	public function filter_plugin_config( $actions, $plugin_id )
 	{
 		if ( $plugin_id == $this->plugin_id() ){
-			$actions[] = _t( 'Configure' );
+			if( strlen( Options::get(self::ENGINE_OPTION) ) > 0 ) {
+				$actions[] = _t( 'Configure' );
+			}
 			$actions[] = _t( 'Choose Engine' );
 		}
 
@@ -131,7 +143,7 @@ class MultiSearch extends Plugin
 	public function action_plugin_ui( $plugin_id, $action )
 	{
 		if ( $plugin_id == $this->plugin_id() ){
-			$action = strlen(Options::get(self::ENGINE_OPTION)) > 0 ? $action : 'Choose Engine' ;
+			$action = strlen( Options::get(self::ENGINE_OPTION) ) > 0 ? $action : 'Choose Engine' ;
 			switch ( $action ){
 				case 'Configure' :
 					$ui = new FormUI( strtolower( get_class( $this ) ) );
@@ -147,6 +159,7 @@ class MultiSearch extends Plugin
 					$ui->append( 'select','engine', 'option:' . self::ENGINE_OPTION, _t('Which search engine would you like to use?'), $options_array );
 					$ui->append( 'submit', 'save', _t( 'Save' ) );
 					$ui->set_option( 'success_message', _t('Options saved') );
+					$ui->on_success( array( $this, 'chosen_engine' ) );
 					$ui->out();
 					break;
 			}
@@ -169,6 +182,26 @@ class MultiSearch extends Plugin
 			$ui->save();
 			$this->reindex_all();
 			return  '<p>' . _t('Search database updated.') . '</p>';
+		}
+		
+		return false;
+	}
+	
+	/**
+	 * Callback function from choosing the engine. 
+	 *
+	 * @param FormUI $ui 
+	 * @return string|bool
+	 */
+	public function chosen_engine( $ui ) 
+	{
+		$this->load_backend( $ui->engine->value );
+		if( !$this->_backend->check_conditions() ) {
+			$ui->set_option( 'success_message', _t('The engine could not be set up, please check the requirements.') );
+		}
+		else {
+			$ui->save();
+			return  '<p>' . _t('Engine saved - please press close and then select Configure in order to check the details and activate the engine.') . '</p>';
 		}
 		
 		return false;
@@ -251,7 +284,7 @@ class MultiSearch extends Plugin
 		if( $this->_enabled && isset( $paramarray['criteria'] ) ) {
 			
 			if( $paramarray['criteria'] != '' ) {
-				$this->_lastSearch = $paramarray['criteria'];
+				$this->_last_search = $paramarray['criteria'];
 				// flag that there was a criteria, but blank it.
 				$paramarray['criteria'] = '';
 			}
@@ -273,7 +306,7 @@ class MultiSearch extends Plugin
 			}
 			
 			$this->_backend->open_readable_database();
-			$ids = $this->_backend->get_by_criteria($this->_lastSearch, $limit, $offset);
+			$ids = $this->_backend->get_by_criteria($this->_last_search, $limit, $offset);
 			$this->_spelling = $this->_backend->get_corrected_query_string();
 			
 			
@@ -371,18 +404,28 @@ class MultiSearch extends Plugin
 	 */
 	protected function init_backend() 
 	{
-		$this->_rootPath = Options::get( self::PATH_OPTION );
-		if(!$this->_rootPath) {
+		$this->_root_path = Options::get( self::PATH_OPTION );
+		if(!$this->_root_path) {
 			// default to this directory
-			$this->_rootPath = HABARI_PATH . '/' . Site::get_path( 'user', true ) . '/plugins/multisearch/indexes/';
-			Options::set( self::PATH_OPTION, $this->_rootPath );
+			$this->_root_path = HABARI_PATH . '/' . Site::get_path( 'user', true ) . '/plugins/multisearch/indexes/';
+			Options::set( self::PATH_OPTION, $this->_root_path );
 		}
 		$this->_backend = false;
 		if( Options::get( self::ENGINE_OPTION ) ) {
-			list($class, $file) = $this->_engine_classes[Options::get( self::ENGINE_OPTION )];
-			include_once dirname( __FILE__ ) . "/classes/" . $file;
-			$this->_backend = new $class( $this->_rootPath );
+			$this->load_backend( Options::get( self::ENGINE_OPTION ) );
 		}
+	}
+	
+	/**
+	 * Load the files for the backend
+	 *
+	 * @param string $engine 
+	 */
+	protected function load_backend( $engine ) 
+	{
+		list($class, $file) = $this->_engine_classes[$engine];
+		include_once dirname( __FILE__ ) . "/classes/" . $file;
+		$this->_backend = new $class( $this->_root_path );
 	}
 }
 ?>
