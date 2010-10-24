@@ -76,6 +76,7 @@ class MultiSearch extends Plugin
 	 */
 	private $_engine_classes = array(
 		'xapian' => array( 'XapianSearch', 'xapiansearch.php' ),
+		'zend_search_lucene' => array( 'ZendSearchLucene', 'zendsearchlucene.php' ),
 	);
 	
 	/**
@@ -221,7 +222,7 @@ class MultiSearch extends Plugin
 			$this->_backend->delete_post( $post );
 			return;
 		}
-		$this->_backend->index_post( $post );
+		$this->_backend->update_post( $post );
 	}
 	
 	/**
@@ -308,7 +309,7 @@ class MultiSearch extends Plugin
 			return; 
 		}
 		
-		$theme->spelling = $this->_spelling;  
+		$theme->spelling = $this->_backend->get_corrected_query_string();  
 		return $theme->fetch( 'searchspelling' );
 	}
 	
@@ -333,7 +334,8 @@ class MultiSearch extends Plugin
 		}
 		
 		if( $this->_enabled && $post instanceof Post && intval($post->id) > 0 ) {
-			$theme->similar = $this->get_similar_posts( $post, $max_recommended );  
+			$ids = $this->_backend->get_similar_posts( $post, $max_recommended );
+			$theme->similar =  count($ids) > 0 ? Posts::get( array('id' => $ids) ) : array();
 			$theme->base_post = $post;
 			return $theme->fetch( 'searchsimilar' );
 		}

@@ -14,7 +14,8 @@ include_once dirname(__FILE__) . "/pluginsearchinterface.php";
  * 
  * @link http://xapian.org
  */
-class XapianSearch implements PluginSearchInterface {
+class XapianSearch implements PluginSearchInterface 
+{
 	/* 
 		Xapian's field values need to be numeric,
 		so we define some constants to help them 
@@ -238,6 +239,16 @@ class XapianSearch implements PluginSearchInterface {
 	}
 	
 	/**
+	 * Updates a post. 
+	 *
+	 * @param Post $post 
+	 */
+	public function update_post( $post ) 
+	{
+		return $this->index_post( $post );
+	}
+	
+	/**
 	 * Add a post to the index. Adds more metadata than may be strictly
 	 * required!
 	 * 
@@ -263,11 +274,10 @@ class XapianSearch implements PluginSearchInterface {
 		
 		// Add terms
 		$tags = $post->tags;
-		if( is_array($tags) && count($tags) ) {
-			foreach( $tags as $id => $tag ) {
-				$this->_indexer->index_text( $tag, 1, 'XTAG' ); // with index for filter
-				$this->_indexer->index_text( $tag, 2 ); // without prefix for index
-			}
+		foreach( $tags as $id => $tag ) {
+			$tag = (string)$tag;
+			$this->_indexer->index_text( $tag, 1, 'XTAG' ); // with index for filter
+			$this->_indexer->index_text( $tag, 2 ); // without prefix for index
 		}
 		
 		// Add uid
@@ -289,8 +299,6 @@ class XapianSearch implements PluginSearchInterface {
 	
 	/**
 	 * Return a list of posts that are similar to the current post
-	 * 
-	 * @todo: Could do with some caching around this.
 	 */
 	public function get_similar_posts( $post, $max_recommended = 5 ) 
 	{
@@ -319,11 +327,8 @@ class XapianSearch implements PluginSearchInterface {
 			}
 			$i->next();
 		}
-		if( count($ids) ) {
-			return Posts::get( array('id' => $ids) );
-		} else {
-			return array();
-		}
+
+		return $ids;
 	}
 	
 	/**
