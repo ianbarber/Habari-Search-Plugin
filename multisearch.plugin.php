@@ -1,6 +1,5 @@
 <?php
-include_once dirname(__FILE__) . "/classes/pluginsearchinterface.php";
-include_once dirname(__FILE__) . "/classes/xapiansearch.php";
+include_once dirname( __FILE__ ) . "/classes/pluginsearchinterface.php";
 
 /**
  * Extensible, but currently Xapian based, search plugin for Habari.
@@ -10,6 +9,7 @@ include_once dirname(__FILE__) . "/classes/xapiansearch.php";
  * @todo Sorting by other than relevance (date?)
  * @todo Caching on get_similar_posts
  * @todo Index comments as a lower weighted set of terms on their posts
+ * @todo Handle ACL system
  * 
  */
 class MultiSearch extends Plugin
@@ -18,6 +18,11 @@ class MultiSearch extends Plugin
 	 * Constant for the option value for the index location
 	 */
 	const PATH_OPTION = 'multisearch__search_db_path';
+	
+	/**
+	 * Constant for th option value for the chosen backend
+	 */
+	const ENGINE_OPTION = 'multisearch__chosen_engine';
 	
 	/**
 	 * The path to the index file
@@ -44,7 +49,7 @@ class MultiSearch extends Plugin
 	 *
 	 * @var PluginSearchInterface
 	 */
-	private $_backend;
+	private $_backend = false;
 	
 	/**
 	 * List of id => status maps for post updates.
@@ -52,6 +57,26 @@ class MultiSearch extends Plugin
 	 * @var array
 	 */
 	private $_prior_status = array();
+	
+	/**
+	 * The list of search engines that can be supported
+	 *
+	 * @var array
+	 */
+	private $_available_engines = array(
+		'xapian' => 'Xapian',
+		'zend_search_lucene' => 'Zend Search Lucene'
+	);
+	
+	/**
+	 * The classes and files for available engines.
+	 *
+	 * @package default
+	 * @var array
+	 */
+	private $_engine_classes = array(
+		'xapian' => array( 'XapianSearch', 'xapiansearch.php' ),
+	);
 	
 	/**
 	 * Null the backend to cause it to flush
@@ -67,28 +92,14 @@ class MultiSearch extends Plugin
 	public function action_init()
 	{
 		$this->init_backend();
-		if ( !$this->_backend->check_conditions() ) {
+		if ( !$this->_backend || !$this->_backend->check_conditions() ) {
 			$this->_enabled = false;
-			Utils::redirect(); //Refresh page. 
+			//Utils::redirect(); //Refresh page. 
+			return;
 		}
-		$this->add_template( 'searchspelling', dirname(__FILE__) . '/searchspelling.php' );
-		$this->add_template( 'searchsimilar', dirname(__FILE__) . '/searchsimilar.php' );
+		$this->add_template( 'searchspelling', dirname( __FILE__ ) . '/searchspelling.php' );
+		$this->add_template( 'searchsimilar', dirname( __FILE__ ) . '/searchsimilar.php' );
 		$this->_enabled = true;
-	}
-	
-	/**
-	 * Activate the plugin, clearing the database if it exists, and reindexing
-	 * all published posts.
-	 */
-	public function action_plugin_activation( $file ) 
-	{
-		$this->init_backend();
-		// Test the lib is there
-		if( !$this->_backend->check_conditions() ) {
-			Session::error( 'Backend search system is not configured properly, please check configuration before using.', 'Multi Search' );
-			/* Don't need to deactivate: Plugins::deactivate_plugin( __FILE__ ); */
-		}
-		$this->reindex_all();
 	}
 	
 	/**
@@ -102,7 +113,8 @@ class MultiSearch extends Plugin
 	public function filter_plugin_config( $actions, $plugin_id )
 	{
 		if ( $plugin_id == $this->plugin_id() ){
-			$actions[] = 'Configure';
+			$actions[] = _t( 'Configure' );
+			$actions[] = _t( 'Choose Engine' );
 		}
 
 		return $actions;
@@ -118,6 +130,7 @@ class MultiSearch extends Plugin
 	public function action_plugin_ui( $plugin_id, $action )
 	{
 		if ( $plugin_id == $this->plugin_id() ){
+			$action = strlen(Options::get(self::ENGINE_OPTION)) > 0 ? $action : 'Choose Engine' ;
 			switch ( $action ){
 				case 'Configure' :
 					$ui = new FormUI( strtolower( get_class( $this ) ) );
@@ -125,6 +138,14 @@ class MultiSearch extends Plugin
 					$ui->append( 'submit', 'save', _t( 'Save' ) );
 					$ui->set_option( 'success_message', _t('Options saved') );
 					$ui->on_success( array( $this, 'updated_config' ) );
+					$ui->out();
+					break;
+				case 'Choose Engine' :
+					$ui = new FormUI( strtolower( get_class( $this ) ) );
+					$options_array = $this->_available_engines;
+					$ui->append( 'select','engine', 'option:' . self::ENGINE_OPTION, _t('Which search engine would you like to use?'), $options_array );
+					$ui->append( 'submit', 'save', _t( 'Save' ) );
+					$ui->set_option( 'success_message', _t('Options saved') );
 					$ui->out();
 					break;
 			}
@@ -139,8 +160,9 @@ class MultiSearch extends Plugin
 	 */
 	public function updated_config( $ui ) 
 	{
-		if( !is_writeable( $ui->index_path->value ) ) {
-			$ui->set_option('success_message', _t('The location you specified is not writeable by the webserver'));
+		$this->init_backend();
+		if( !$this->_backend || !$this->_backend->check_conditions() ) {
+			$ui->set_option( 'success_message', _t('The engine is not configured correctly.') );
 		}
 		else {
 			$ui->save();
@@ -306,6 +328,10 @@ class MultiSearch extends Plugin
 	 */
 	public function theme_similar_posts( $theme, $post, $max_recommended = 5 ) 
 	{
+		if( !$this->_enabled ) { 
+			return; 
+		}
+		
 		if( $this->_enabled && $post instanceof Post && intval($post->id) > 0 ) {
 			$theme->similar = $this->get_similar_posts( $post, $max_recommended );  
 			$theme->base_post = $post;
@@ -319,6 +345,10 @@ class MultiSearch extends Plugin
 	 */
 	protected function reindex_all() 
 	{
+		if( !$this->_enabled ) { 
+			return; 
+		}
+		
 		$this->_backend->open_writable_database( PluginSearchInterface::INIT_DB );
 		$posts = Posts::get(array(	'status' => Post::status( 'published' ),
 		 							'ignore_permissions' => true,
@@ -336,19 +366,21 @@ class MultiSearch extends Plugin
 	/**
 	 * Initialise the file paths
 	 * 
-	 * @todo Multiple backend support
 	 */
 	protected function init_backend() 
 	{
-		$this->_rootPath = Options::get(self::PATH_OPTION);
+		$this->_rootPath = Options::get( self::PATH_OPTION );
 		if(!$this->_rootPath) {
 			// default to this directory
 			$this->_rootPath = HABARI_PATH . '/' . Site::get_path( 'user', true ) . '/plugins/multisearch/indexes/';
-			Options::set(self::PATH_OPTION, $this->_rootPath);
+			Options::set( self::PATH_OPTION, $this->_rootPath );
 		}
-		$this->_backend = new XapianSearch($this->_rootPath);
+		$this->_backend = false;
+		if( Options::get( self::ENGINE_OPTION ) ) {
+			list($class, $file) = $this->_engine_classes[Options::get( self::ENGINE_OPTION )];
+			include_once dirname( __FILE__ ) . "/classes/" . $file;
+			$this->_backend = new $class( $this->_rootPath );
+		}
 	}
 }
-
-
 ?>

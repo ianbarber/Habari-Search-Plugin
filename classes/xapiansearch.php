@@ -239,7 +239,7 @@ class XapianSearch implements PluginSearchInterface {
 	
 	/**
 	 * Add a post to the index. Adds more metadata than may be strictly
-	 * required. 
+	 * required!
 	 * 
 	 * @param Post $post the post being inserted
 	 */

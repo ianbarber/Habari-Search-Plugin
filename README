@@ -18,3 +18,8 @@ To your search.php file, and this will output a correction if there is one.
 
 To retrieve similar posts you can use the theme function, which will return an array of posts
 	<?php $theme->similar_posts($post); ?>
+	
+Limitations: 
+- Does not replace search database queries, so may still have performance problems
+- Does not respect ACL 
+- Only indexes published posts

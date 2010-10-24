@@ -7,7 +7,7 @@
 	
 	<version>0.5</version>
 	<url>http://phpir.com/</url>
-	<description><![CDATA[Replace the built in search functionality with a Xapian based engine.]]></description>
+	<description><![CDATA[Replace the built in search functionality. Requires configuration before taking effect.]]></description>
 
 	<copyright>2010</copyright>
 	
