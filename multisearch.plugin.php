@@ -35,11 +35,6 @@ class MultiSearch extends Plugin
 	private $_last_search;
 	
 	/**
-	 * The spelling correction, if needed
-	 */
-	private $_spelling = '';
-	
-	/**
 	 * Indicate whether the plugin is properly initialised
 	 */
 	private $_enabled;
@@ -100,6 +95,17 @@ class MultiSearch extends Plugin
 		}
 		$this->add_template( 'searchspelling', dirname( __FILE__ ) . '/searchspelling.php' );
 		$this->add_template( 'searchsimilar', dirname( __FILE__ ) . '/searchsimilar.php' );
+		$this->_enabled = true;
+	}
+	
+	/**
+	 * Force a backend - mainly for testing. 
+	 *
+	 * @param PluginSearchInterface $backend 
+	 */
+	public function force_backend( $backend ) 
+	{
+		$this->_backend = $backend;
 		$this->_enabled = true;
 	}
 	
@@ -307,7 +313,6 @@ class MultiSearch extends Plugin
 			
 			$this->_backend->open_readable_database();
 			$ids = $this->_backend->get_by_criteria($this->_last_search, $limit, $offset);
-			$this->_spelling = $this->_backend->get_corrected_query_string();
 			
 			
 			if( count( $ids ) > 0 ) {
@@ -410,7 +415,7 @@ class MultiSearch extends Plugin
 			$this->_root_path = HABARI_PATH . '/' . Site::get_path( 'user', true ) . '/plugins/multisearch/indexes/';
 			Options::set( self::PATH_OPTION, $this->_root_path );
 		}
-		$this->_backend = false;
+		
 		if( Options::get( self::ENGINE_OPTION ) ) {
 			$this->load_backend( Options::get( self::ENGINE_OPTION ) );
 		}
@@ -423,9 +428,13 @@ class MultiSearch extends Plugin
 	 */
 	protected function load_backend( $engine ) 
 	{
-		list($class, $file) = $this->_engine_classes[$engine];
-		include_once dirname( __FILE__ ) . "/classes/" . $file;
-		$this->_backend = new $class( $this->_root_path );
+		if( isset( $this->_engine_classes[$engine] ) ) {
+			list( $class, $file ) = $this->_engine_classes[$engine];
+			include_once dirname( __FILE__ ) . "/classes/" . $file;
+			$this->_backend = new $class( $this->_root_path );
+			return true;
+		}
+		return false;
 	}
 }
 ?>
