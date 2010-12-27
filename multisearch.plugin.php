@@ -10,6 +10,7 @@ include_once dirname( __FILE__ ) . "/classes/pluginsearchinterface.php";
  * @todo Caching on get_similar_posts
  * @todo Index comments as a lower weighted set of terms on their posts
  * @todo Handle ACL system
+ * @todo Configure engine before attempting to build directory, so to avoid errors when directory is non-writeable
  * 
  */
 class MultiSearch extends Plugin

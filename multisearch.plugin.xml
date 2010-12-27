@@ -19,10 +19,10 @@
 		<h3>Other Features</h3>
 		<p>Note that not all engines support all features, so they may not activate even if in the theme</p>
 		<p>To add a spelling correction element to your theme, add the line: </p>
-		<code><?php $theme->search_spelling(); ?></code>
+		<code>$theme->search_spelling();</code>
 		<p>To your search.php file, and this will output a correction if there is one. </p>
 		<p>To retrieve similar posts you can use the theme function, which will return an array of posts</p>
-		<code><?php $theme->similar_posts($post); ?></code>
+		<code>$theme->similar_posts($post);</code>
 		<h3>Xapian</h3>
 		<p>Xapian is a high performance open source search engine written in C. To use <a href="http://xapian.org/docs/install.html">Xapian</a>, make sure you have Xapian and the Xapian extension installed. Often this will be available via package management, but make sure to get both the Xapian and Xapian Bindings packages (if available) to ensure the PHP extension is available. You'll need a line in your php.ini like:</p>
 		<code>extension=xapian.so</code>
